@@ -12,17 +12,17 @@ from skimage.morphology import skeletonize
 from numba import jit
 from time import perf_counter
 
-def thin_spiral_image_with_custom_cut(image_path:str, white_out:bool=True, field_of_interest:list=[(-81, 57), (-91, 122)]):
+def thin_spiral_image_with_custom_cut(image_path:str, white_out:bool=True, field_of_interest:list=[(57, -81), (122, -91)]):
     # Load the image and convert it to grayscale
     img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
 
     # White out the specified regions
     cut_img = img.copy()
     if white_out:
-        cut_img[:field_of_interest[0][1], :] = 255  # Top region
-        cut_img[field_of_interest[0][0]:, :] = 255  # Bottom region
-        cut_img[:, :field_of_interest[1][1]] = 255  # Left region
-        cut_img[:, field_of_interest[1][0]:] = 255  # Right region
+        cut_img[:field_of_interest[0][0], :] = 255  # Top region
+        cut_img[field_of_interest[0][1]:, :] = 255  # Bottom region
+        cut_img[:, :field_of_interest[1][0]] = 255  # Left region
+        cut_img[:, field_of_interest[1][1]:] = 255  # Right region
     
     # Set all non-white pixels to black
     binary_strict = np.where(cut_img < 255, 0, 255).astype(np.uint8)
@@ -104,14 +104,13 @@ def find_spiral_neigbor(skeleton_image, point=[0, 0], first:bool=True, search_ra
         
     # Search for the start of the spiral within the search radius
     for radius in range(1, search_radius + 1):
-        for angle in np.linspace(0, 2 * np.pi, 8 * radius):
+        for angle in np.linspace(0, 2 * np.pi, 8 * radius): #8 * radius
             x = int(center_x + radius * np.cos(angle))
             y = int(center_y + radius * np.sin(angle))
 
             if 0 <= x < skeleton_image.shape[1] and 0 <= y < skeleton_image.shape[0]:
                 if skeleton_image[y, x] == 1:  # White pixel found
                     return x, y  # Returning the first white pixel found in spiral pattern
-
     return None  # Return None if no start found
 
 def trace_spiral(skeleton_image, start_point:tuple, search_radius=200):
@@ -136,6 +135,10 @@ def trace_spiral(skeleton_image, start_point:tuple, search_radius=200):
     return path
 
 def angle_cont_func(trace_angle_continuous):
+    ''' 
+    takes a list of lists of angles
+    returns the list of lists again but with a continuoous representation
+    '''
     for index, j in enumerate(trace_angle_continuous):
         for i in range(len(j)-1):
             if j[i] - j[i+1] > 2:
