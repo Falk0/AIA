@@ -11,9 +11,11 @@ import numpy as np
 from skimage.morphology import skeletonize
 from numba import jit
 import matplotlib.pyplot as plt
-#from time import perf_counter
 
 def plt_traced(trace_path, name):
+    ''' 
+    create a nice plot using the cartesian of the spiral
+    '''
     trace_path_time = np.array([[i[0], -i[1], j] for j, i in enumerate(trace_path)])
     plt.figure()
     plt.scatter(trace_path_time[:,0], trace_path_time[:,1], c=trace_path_time[:,2], s=20, cmap='jet')
@@ -25,6 +27,10 @@ def plt_traced(trace_path, name):
 
 
 def thin_spiral_image_with_custom_cut(image_path:str, white_out:bool=True, field_of_interest:list=[(57, -81), (122, -91)]):
+    '''
+    skeltonization which was used for the Kamble dataset
+    '''
+    
     # Load the image and convert it to grayscale
     img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
 
@@ -71,9 +77,14 @@ def get_angle_dist2(a:list):
     return angle, dist
 
 @jit(nopython=True)
-def _choose_closest(imgFiltered, center, search_radius):
+def _choose_closest(imgFiltered, center, search_radius, flipped_priority=False):
+    '''
+    Choose the pixel closest to the previous pixle. 
+    End points have priority, then intersections and last are normal pixels
+    '''
     middle = [-1, -1]
-    for j in [11, 13, 12]: # 11 checks for end points, 13 checks for intersections, 12 checks for normal connections
+    prio_lst = [11, 13, 12] if not flipped_priority else [11, 12, 13]
+    for j in prio_lst: # 11 checks for end points, 13 checks for intersections, 12 checks for normal connections
         
         #ends = np.argwhere(imgFiltered == j)
         # np.argwhere cannot be used with numba because output needs to be list of lists and not list of tuples
@@ -90,19 +101,24 @@ def _choose_closest(imgFiltered, center, search_radius):
             return (middle[0], middle[1])
     return None
 
-def find_spiral_point(skeleton_image, point:tuple=(0, 0), first:bool=True, search_radius:int=200, prev=None):
+def find_spiral_point(skeleton_image, point:tuple=(0, 0), first:bool=True, search_radius:int=200, prev=None, flipped_priority=False):
+    '''
+    Using a filter to find the most relevant next point in the image. 
+    '''
     # Find the center of the image
     if first:
         center_x, center_y = skeleton_image.shape[1] // 2, skeleton_image.shape[0] // 2
     else:
         center_x, center_y = point[0], point[1]
     center = (center_x, center_y)    
+    #'''
     if prev:
-        next_pred = [2 * center_x - prev[0], 2 * center_y - prev[1]]
+        next_pred = [center_x + np.sign(center_x - prev[0]), center_y + np.sign(center_y - prev[1])]
         if skeleton_image[next_pred[1], next_pred[0]] == 1:
             #print('take pred')
             return next_pred[0], next_pred[1]
         center = next_pred
+    #'''
     #print('take point')
     # Set the end-points kernel:
     h = np.array([[1, 1, 1],
@@ -115,14 +131,19 @@ def find_spiral_point(skeleton_image, point:tuple=(0, 0), first:bool=True, searc
     
     # Convolve the image with the kernel:
     tmp = skeleton_image[ymin:ymax, xmin:xmax]#TODO
+    #print(tmp)
     imgFiltered = cv2.filter2D(tmp, -1, h)
-    res = _choose_closest(imgFiltered, (center[0]-xmin, center[1]-ymin), search_radius)
-    if res:
+    res = _choose_closest(imgFiltered, (center[0]-xmin, center[1]-ymin), search_radius, flipped_priority=flipped_priority)
+    if res and res[0] > 0 and res[1] > 0:
         return res[0]+xmin, res[1]+ymin
     return None
 
 @jit(nopython=True)
 def find_spiral_neigbor(skeleton_image, point=[0, 0], first:bool=True, search_radius=200, prev=None):
+    '''
+    looking for the next point in the spiral.
+    This does the same as find_spiral_point but using only the distance from the last pixel.
+    '''
     # Find the center of the image
     if first:
         center_x, center_y = skeleton_image.shape[1] // 2, skeleton_image.shape[0] // 2
@@ -148,7 +169,10 @@ def find_spiral_neigbor(skeleton_image, point=[0, 0], first:bool=True, search_ra
                     return x, y  # Returning the first white pixel found in spiral pattern
     return None  # Return None if no start found
 
-def trace_spiral(skeleton_image, start_point:tuple, search_radius=200):
+def trace_spiral(skeleton_image, start_point:tuple, search_radius=200, neigbor=True, flipped_priority=False):
+    '''
+    Tracing the spiral by applying find_spiral_point or find_spiral_neigbor
+    '''
     current_point = start_point
     #path = np.zeros()
     path = list([current_point])
@@ -158,14 +182,25 @@ def trace_spiral(skeleton_image, start_point:tuple, search_radius=200):
         skeleton_image[current_point[1], current_point[0]] = 0
 
         # Find the nearest neighbor in the local region
-        #TODO decide whether find_spiral_point or find_spiral_neigbor is used
-        next_point = find_spiral_neigbor(
-            skeleton_image, 
-            (current_point[0], current_point[1]), 
-            False, 
-            search_radius,
-            prev=prev) #find_local_nearest_neighbor(skeleton_image, current_point)
+        if neigbor:
+            next_point = find_spiral_neigbor(
+                skeleton_image, 
+                (current_point[0], current_point[1]), 
+                False, 
+                search_radius,
+                prev=prev) 
+        else:
+            next_point = find_spiral_point(
+                skeleton_image, 
+                (current_point[0], current_point[1]), 
+                False, 
+                search_radius,
+                prev=prev, 
+                flipped_priority=flipped_priority,
+            ) 
+            
         prev = current_point
+        
         if next_point is None:
             break  # No more neighbors
 
