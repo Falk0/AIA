@@ -18,6 +18,7 @@ This project focuses on processing spiral images to achieve a thinned, skeletoni
     NumPy (numpy)
     SciPy (scipy)
     scikit-image (scikit-image)
+    Numba (numba)
 
 ### Usage
 
