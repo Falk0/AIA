@@ -114,10 +114,13 @@ def find_spiral_point(skeleton_image, point:tuple=(0, 0), first:bool=True, searc
     #'''
     if prev:
         next_pred = [center_x + np.sign(center_x - prev[0]), center_y + np.sign(center_y - prev[1])]
-        if skeleton_image[next_pred[1], next_pred[0]] == 1:
-            #print('take pred')
-            return next_pred[0], next_pred[1]
-        center = next_pred
+        try:
+            if skeleton_image[next_pred[1], next_pred[0]] == 1:
+                #print('take pred')
+                return next_pred[0], next_pred[1]
+            center = next_pred
+        except:
+            print('skeleton predicition out of bound')
     #'''
     #print('take point')
     # Set the end-points kernel:
