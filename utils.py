@@ -225,3 +225,16 @@ def angle_cont_func(trace_angle_continuous):
             elif j[i] - j[i+1] < -2:
                 trace_angle_continuous[index][i+1:] -= np.pi * np.ones(len(j[i+1:]))
     return trace_angle_continuous
+
+def find_special_points(im):
+    # Set the end-points kernel:
+    h = np.array([[1, 1, 1],
+                  [1, 10, 1],
+                  [1, 1, 1]])
+    res_im = cv2.filter2D(im, -1, h)
+    # 11 end points, 13 intersections, 12 normal connections
+    ends = np.argwhere(res_im == 11)
+    conn = np.argwhere(res_im == 12)
+    cross = np.argwhere(res_im > 12)
+    return {'ends':ends, 'connections':conn, 'cross':cross}
+    
