@@ -228,13 +228,17 @@ def angle_cont_func(trace_angle_continuous):
 
 def find_special_points(im):
     # Set the end-points kernel:
-    h = np.array([[1, 1, 1],
+    h1 = np.array([[1, 1, 1],
                   [1, 10, 1],
                   [1, 1, 1]])
-    res_im = cv2.filter2D(im, -1, h)
+    h2 = np.array([[1, 1],
+                  [1, 1]])
+    res_im = cv2.filter2D(im, -1, h1)
     # 11 end points, 13 intersections, 12 normal connections
     ends = np.argwhere(res_im == 11)
     conn = np.argwhere(res_im == 12)
     cross = np.argwhere(res_im > 12)
-    return {'ends':ends, 'connections':conn, 'cross':cross}
+    res_im = cv2.filter2D(im, -1, h2)
+    sc = np.argwhere(res_im == 4)
+    return {'ends':ends, 'connections':conn, 'cross':cross, 'sc':sc}
     
